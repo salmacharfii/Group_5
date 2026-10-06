@@ -1,0 +1,2 @@
+Paste a product review,Sentiment,timestamp
+"I love this tablet, the screen is sharp.","{""label"": ""positive"", ""confidences"": [{""label"": ""positive"", ""confidence"": 0.9197764861981954}, {""label"": ""neutral"", ""confidence"": 0.07188598648931238}, {""label"": ""negative"", ""confidence"": 0.008337527312492203}]}",2026-10-06 10:39:34.403101
