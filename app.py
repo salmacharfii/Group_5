@@ -1,18 +1,23 @@
 import joblib
-import gradio as gr
+import streamlit as st
 
-model = joblib.load("sentiment_model.joblib")
+st.title("Customer Review Sentiment")
+st.write("Group 5 · Ironhack AI Engineering · TF-IDF + Logistic Regression trained on 27,700 Amazon reviews")
 
-def predict(review):
+
+@st.cache_resource
+def load_model():
+    return joblib.load("App/sentiment_model.joblib")
+
+
+model = load_model()
+
+review = st.text_area("Paste a product review", "Stopped charging after two weeks.")
+
+if st.button("Predict"):
     probabilities = model.predict_proba([review])[0]
-    return {label: float(p) for label, p in zip(model.classes_, probabilities)}
-
-demo = gr.Interface(
-    fn=predict,
-    inputs=gr.Textbox(lines=4, label="Paste a product review"),
-    outputs=gr.Label(label="Sentiment"),
-    title="Customer Review Sentiment",
-    examples=[["I love this tablet, the screen is sharp."], ["Stopped charging after two weeks."]],
-)
-
-demo.launch()
+    prediction = model.classes_[probabilities.argmax()]
+    st.subheader(f"Sentiment: {prediction}")
+    for label, p in zip(model.classes_, probabilities):
+        st.write(f"{label}: {p:.0%}")
+        st.progress(float(p))
