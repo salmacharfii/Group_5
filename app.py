@@ -4,14 +4,17 @@ import pandas as pd
 import streamlit as st
 import plotly.graph_objects as go
 
-st.set_page_config(page_title="Review Sentiment", page_icon="💬", layout="wide")
+import vibecheck_theme as vc
 
-COLORS = {"negative": "#e34948", "neutral": "#9a9893", "positive": "#2a78d6"}
+st.set_page_config(page_title="VibeCheck", page_icon="✓", layout="wide")
+vc.apply_theme()
+
+COLORS = vc.SENTIMENT
 ORDER = ["negative", "neutral", "positive"]
 EXAMPLES = {
-    "😊 Positive": "Great sound quality and the battery lasts all day. Totally worth the price!",
-    "😐 Neutral": "It works as described. Nothing special, but it does the job.",
-    "😠 Negative": "Stopped charging after two weeks. Customer service never answered.",
+    "Positive example": "Great sound quality and the battery lasts all day. Totally worth the price!",
+    "Neutral example": "It works as described. Nothing special, but it does the job.",
+    "Negative example": "Stopped charging after two weeks. Customer service never answered.",
 }
 
 
@@ -30,17 +33,17 @@ def donut(labels, values, center_text):
     labels = [str(l).capitalize() for l, _ in pairs]
     values = [v for _, v in pairs]
     fig = go.Figure(go.Pie(
-        labels=labels, values=values, hole=0.6, sort=False, direction="clockwise",
-        marker=dict(colors=[COLORS[l.lower()] for l in labels], line=dict(color="white", width=2)),
-        textinfo="label+percent", textposition="outside",
+        labels=labels, values=values, hole=0.68, sort=False, direction="clockwise",
+        marker=dict(colors=[COLORS[l.lower()] for l in labels], line=dict(color=vc.COLORS["ground"], width=3)),
+        textinfo="percent", textfont=dict(family=vc.MONO, color=vc.COLORS["ground"]),
         hovertemplate="%{label}: %{value:,} (%{percent})<extra></extra>",
     ))
     fig.update_layout(
-        showlegend=True, legend=dict(orientation="h", y=-0.1, x=0.5, xanchor="center"),
-        annotations=[dict(text=center_text, x=0.5, y=0.5, showarrow=False, font=dict(size=20))],
-        margin=dict(t=30, b=30, l=30, r=30), height=360,
+        showlegend=True, legend=dict(orientation="h", y=-0.08, x=0.5, xanchor="center"),
+        annotations=[dict(text=center_text, x=0.5, y=0.5, showarrow=False,
+                          font=dict(size=22, family=vc.FONT, color=vc.COLORS["text"]))],
     )
-    return fig
+    return vc.style_chart(fig, height=360)
 
 
 def word_contributions(text, class_name, top_n=8):
@@ -57,20 +60,27 @@ def contributions_chart(df, class_name):
     color = COLORS[class_name.lower()]
     fig = go.Figure(go.Bar(
         x=df["weight"], y=df["word"], orientation="h",
-        marker=dict(color=[color if w > 0 else "#c3c2b7" for w in df["weight"]], cornerradius=4),
+        marker=dict(color=[color if w > 0 else vc.COLORS["line"] for w in df["weight"]], cornerradius=6),
         hovertemplate="%{y}: %{x:+.2f}<extra></extra>",
     ))
     fig.update_layout(
-        height=300, margin=dict(t=10, b=30, l=10, r=10),
-        xaxis=dict(title=f"← against {class_name}   |   towards {class_name} →", zeroline=True, zerolinecolor="#999", showgrid=False),
-        yaxis=dict(showgrid=False),
+        xaxis=dict(title=dict(text=f"← against {class_name}   ·   towards {class_name} →",
+                              font=dict(family=vc.MONO, size=12, color=vc.COLORS["muted"])),
+                   zeroline=True, showgrid=False),
+        yaxis=dict(showgrid=False, tickfont=dict(family=vc.MONO, size=13, color=vc.COLORS["text"])),
     )
-    return fig
+    return vc.style_chart(fig, height=320)
+
 
 # Thresholds for the verdict (tune these to your data)
 RECOMMEND_MIN_POS = 0.70      # at least 70% positive ...
 RECOMMEND_MAX_NEG = 0.15      # ... and at most 15% negative
 REJECT_MIN_NEG = 0.30         # 30%+ negative -> not recommended
+VERDICT_STYLE = {
+    "recommend": ("Recommended", COLORS["positive"]),
+    "mixed": ("Mixed reviews", COLORS["neutral"]),
+    "reject": ("Not recommended", COLORS["negative"]),
+}
 
 
 def key_terms(texts, class_name, top_n=4):
@@ -95,61 +105,60 @@ def product_verdict(group):
     complaint_txt = f" Common complaints: **{', '.join(complaints)}**." if complaints else ""
 
     if pos >= RECOMMEND_MIN_POS and neg <= RECOMMEND_MAX_NEG:
-        return "recommend", (f"✅ **Recommended.** {pos:.0%} of {n:,} reviews are positive "
-                             f"and only {neg:.0%} negative.{praise_txt}")
+        return "recommend", (f"{pos:.0%} of {n:,} reviews are positive and only {neg:.0%} negative.{praise_txt}")
     if neg >= REJECT_MIN_NEG:
-        return "reject", (f"❌ **Not recommended.** {neg:.0%} of {n:,} reviews are negative."
-                          f"{complaint_txt}")
-    return "mixed", (f"⚠️ **Mixed reviews.** {pos:.0%} positive, {neu:.0%} neutral, {neg:.0%} negative "
+        return "reject", (f"{neg:.0%} of {n:,} reviews are negative.{complaint_txt}")
+    return "mixed", (f"{pos:.0%} positive, {neu:.0%} neutral, {neg:.0%} negative "
                      f"across {n:,} reviews.{praise_txt}{complaint_txt}")
+
 
 # ---------------- Sidebar ----------------
 with st.sidebar:
-    st.header("About the model")
+    st.markdown(f'<div class="vc-side-logo">{vc.LOGO_MARK.format(size=40)}</div>', unsafe_allow_html=True)
+    vc.eyebrow("About the model")
     st.write("**Type:** TF-IDF + Logistic Regression")
     st.write("**Training data:** 27,700 Amazon reviews")
     st.write("**Classes:** negative · neutral · positive")
     st.caption("Group 5 · Ironhack AI Engineering")
 
-st.title("💬 Customer Review Sentiment")
+vc.header()
 tab1, tab2, tab3 = st.tabs(["Single review", "Batch analysis", "Model performance"])
 
 # ---------------- Tab 1: single review ----------------
 with tab1:
     if "review" not in st.session_state:
-        st.session_state.review = EXAMPLES["😠 Negative"]
+        st.session_state.review = EXAMPLES["Negative example"]
 
-    st.write("Try an example:")
+    vc.eyebrow("Try an example")
     cols = st.columns(len(EXAMPLES))
     for col, (name, text) in zip(cols, EXAMPLES.items()):
-        if col.button(name, use_container_width=True):
+        if col.button(name, width="stretch"):
             st.session_state.review = text
 
     review = st.text_area("Or paste your own product review", key="review", height=120)
 
-    if st.button("Predict", type="primary") and review.strip():
+    if st.button("Check the vibe", type="primary") and review.strip():
         probs = model.predict_proba([review])[0]
-        pred = model.classes_[probs.argmax()]
+        pred = str(model.classes_[probs.argmax()])
         conf = probs.max()
 
-        left, right = st.columns(2)
+        left, right = st.columns([1, 1.15], gap="large")
         with left:
-            st.subheader("Prediction")
-            st.plotly_chart(donut(model.classes_, probs, f"<b>{str(pred).capitalize()}</b><br>{conf:.0%}"),
-                            use_container_width=True)
+            vc.result_card(pred, {str(c): float(p) for c, p in zip(model.classes_, probs)})
             if conf < 0.5:
                 st.warning("Low confidence: the model is unsure about this review.")
         with right:
-            st.subheader("Why this prediction?")
+            vc.eyebrow("Why this prediction?")
             contrib = word_contributions(review, pred)
             if contrib.empty:
                 st.info("None of these words were seen during training.")
             else:
-                st.plotly_chart(contributions_chart(contrib, str(pred)), use_container_width=True)
+                st.plotly_chart(contributions_chart(contrib, pred), width="stretch")
                 st.caption("Words with the biggest influence on the prediction.")
 
 # ---------------- Tab 2: batch ----------------
 with tab2:
+    vc.eyebrow("Many reviews at once")
     st.write("Upload a CSV file with one review per row.")
     file = st.file_uploader("CSV file", type="csv")
     if file:
@@ -173,10 +182,10 @@ with tab2:
                 n = int(counts.get(label, 0))
                 col.metric(label.capitalize(), f"{n:,}", f"{n / len(data):.0%}", delta_color="off")
 
-            left, right = st.columns([1, 1.4])
+            left, right = st.columns([1, 1.4], gap="large")
             left.plotly_chart(donut(counts.index, counts.values, f"<b>{len(data):,}</b><br>reviews"),
-                              use_container_width=True)
-            right.dataframe(data[[text_col, "sentiment", "confidence"]], height=360, use_container_width=True)
+                              width="stretch")
+            right.dataframe(data[[text_col, "sentiment", "confidence"]], height=360, width="stretch")
 
             # --- Recommendation per product ---
             st.subheader("Recommendation")
@@ -190,18 +199,19 @@ with tab2:
             for name, group in groups:
                 kind, text = product_verdict(group)
                 verdicts.append({"product": name, "verdict": kind, "reviews": len(group)})
+                label, color = VERDICT_STYLE[kind]
                 with st.container(border=True):
+                    vc.pill(label, color)
                     st.markdown(f"#### {name}")
-                    box = {"recommend": st.success, "reject": st.error, "mixed": st.warning}[kind]
-                    box(text)
+                    st.markdown(text)
 
-            st.download_button("⬇ Download results (CSV)",
+            st.download_button("Download results (CSV)",
                                data.drop(columns="_text").to_csv(index=False).encode("utf-8"),
                                "sentiment_results.csv", "text/csv")
 
 # ---------------- Tab 3: performance ----------------
 with tab3:
-    st.write("Results on the held-out test set (6,925 reviews).")
+    vc.eyebrow("Held-out test set · 6,925 reviews")
     m1, m2, m3, m4 = st.columns(4)
     m1.metric("Accuracy", "92.4%")
     m2.metric("Macro F1", "0.64")
@@ -218,17 +228,18 @@ with tab3:
     cm_pct = cm / cm.sum(axis=1, keepdims=True)          # % of each true class
     text = [[f"{p:.0%}<br>({n:,})" for p, n in zip(pr, nr)] for pr, nr in zip(cm_pct, cm)]
 
-    left, right = st.columns([1.2, 1])
+    left, right = st.columns([1.2, 1], gap="large")
     with left:
         st.subheader("Confusion matrix")
         fig = go.Figure(go.Heatmap(
             z=cm_pct, x=[f"Pred {l}" for l in ORDER], y=[f"True {l}" for l in ORDER],
-            colorscale=[[0, "#f0efec"], [1, "#2a78d6"]], zmin=0, zmax=1,
-            text=text, texttemplate="%{text}", showscale=False, xgap=2, ygap=2,
+            colorscale=[[0, vc.COLORS["surface"]], [0.5, "#1F5A4D"], [1, "#2C8A73"]], zmin=0, zmax=1,
+            text=text, texttemplate="%{text}", textfont=dict(family=vc.MONO, color=vc.COLORS["text"]),
+            showscale=False, xgap=3, ygap=3,
             hovertemplate="%{y} → %{x}: %{z:.0%}<extra></extra>",
         ))
-        fig.update_layout(height=380, margin=dict(t=10, b=10, l=10, r=10), yaxis=dict(autorange="reversed"))
-        st.plotly_chart(fig, use_container_width=True)
+        fig.update_layout(yaxis=dict(autorange="reversed"))
+        st.plotly_chart(vc.style_chart(fig, height=380), width="stretch")
         st.caption("Each row shows where the reviews of that true class ended up (row = 100%).")
 
     with right:
@@ -240,4 +251,6 @@ with tab3:
             "F1": [0.58, 0.37, 0.96],
             "Support": [162, 300, 6463],
         })
-        st.dataframe(scores, hide_index=True, use_container_width=True)
+        st.dataframe(scores, hide_index=True, width="stretch")
+
+vc.footer()
