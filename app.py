@@ -67,6 +67,41 @@ def contributions_chart(df, class_name):
     )
     return fig
 
+# Thresholds for the verdict (tune these to your data)
+RECOMMEND_MIN_POS = 0.70      # at least 70% positive ...
+RECOMMEND_MAX_NEG = 0.15      # ... and at most 15% negative
+REJECT_MIN_NEG = 0.30         # 30%+ negative -> not recommended
+
+
+def key_terms(texts, class_name, top_n=4):
+    """Words that most drive reviews of this class (e.g. what people complain about)."""
+    if len(texts) == 0:
+        return []
+    X = vectorizer.transform(texts)
+    class_idx = list(clf.classes_).index(class_name)
+    scores = np.asarray(X.sum(axis=0)).ravel() * clf.coef_[class_idx]
+    top = np.argsort(-scores)[:top_n]
+    return [feature_names[i] for i in top if scores[i] > 0]
+
+
+def product_verdict(group):
+    n = len(group)
+    share = group["sentiment"].value_counts(normalize=True)
+    pos, neu, neg = (float(share.get(c, 0)) for c in ORDER[::-1])
+    praise = key_terms(group.loc[group["sentiment"] == "positive", "_text"], "positive")
+    complaints = key_terms(group.loc[group["sentiment"] == "negative", "_text"], "negative")
+
+    praise_txt = f" Customers especially mention **{', '.join(praise)}**." if praise else ""
+    complaint_txt = f" Common complaints: **{', '.join(complaints)}**." if complaints else ""
+
+    if pos >= RECOMMEND_MIN_POS and neg <= RECOMMEND_MAX_NEG:
+        return "recommend", (f"✅ **Recommended.** {pos:.0%} of {n:,} reviews are positive "
+                             f"and only {neg:.0%} negative.{praise_txt}")
+    if neg >= REJECT_MIN_NEG:
+        return "reject", (f"❌ **Not recommended.** {neg:.0%} of {n:,} reviews are negative."
+                          f"{complaint_txt}")
+    return "mixed", (f"⚠️ **Mixed reviews.** {pos:.0%} positive, {neu:.0%} neutral, {neg:.0%} negative "
+                     f"across {n:,} reviews.{praise_txt}{complaint_txt}")
 
 # ---------------- Sidebar ----------------
 with st.sidebar:
@@ -119,17 +154,22 @@ with tab2:
     file = st.file_uploader("CSV file", type="csv")
     if file:
         data = pd.read_csv(file)
-        text_col = st.selectbox("Which column contains the review text?", data.columns)
+        c1, c2 = st.columns(2)
+        text_col = c1.selectbox("Review text column", data.columns)
+        product_col = c2.selectbox("Product column (optional)",
+                                   ["(none - all reviews are one product)"] + list(data.columns))
+
         if st.button("Analyze all reviews", type="primary"):
-            texts = data[text_col].fillna("").astype(str)
-            probs = model.predict_proba(texts)
+            data["_text"] = data[text_col].fillna("").astype(str)
+            probs = model.predict_proba(data["_text"])
             data["sentiment"] = model.classes_[probs.argmax(axis=1)]
             data["confidence"] = probs.max(axis=1).round(2)
 
+            # --- Overall summary ---
             counts = data["sentiment"].value_counts()
-            c1, c2, c3, c4 = st.columns(4)
-            c1.metric("Reviews", f"{len(data):,}")
-            for col, label in zip([c2, c3, c4], ORDER):
+            m = st.columns(4)
+            m[0].metric("Reviews", f"{len(data):,}")
+            for col, label in zip(m[1:], ORDER):
                 n = int(counts.get(label, 0))
                 col.metric(label.capitalize(), f"{n:,}", f"{n / len(data):.0%}", delta_color="off")
 
@@ -138,7 +178,25 @@ with tab2:
                               use_container_width=True)
             right.dataframe(data[[text_col, "sentiment", "confidence"]], height=360, use_container_width=True)
 
-            st.download_button("⬇ Download results (CSV)", data.to_csv(index=False).encode("utf-8"),
+            # --- Recommendation per product ---
+            st.subheader("Recommendation")
+            if product_col.startswith("(none"):
+                groups = [("All uploaded reviews", data)]
+            else:
+                top_products = data[product_col].value_counts().head(20).index   # 20 most-reviewed
+                groups = [(p, data[data[product_col] == p]) for p in top_products]
+
+            verdicts = []
+            for name, group in groups:
+                kind, text = product_verdict(group)
+                verdicts.append({"product": name, "verdict": kind, "reviews": len(group)})
+                with st.container(border=True):
+                    st.markdown(f"#### {name}")
+                    box = {"recommend": st.success, "reject": st.error, "mixed": st.warning}[kind]
+                    box(text)
+
+            st.download_button("⬇ Download results (CSV)",
+                               data.drop(columns="_text").to_csv(index=False).encode("utf-8"),
                                "sentiment_results.csv", "text/csv")
 
 # ---------------- Tab 3: performance ----------------
