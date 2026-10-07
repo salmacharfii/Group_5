@@ -7,7 +7,7 @@ st.write("Group 5 · Ironhack AI Engineering · TF-IDF + Logistic Regression tra
 
 @st.cache_resource
 def load_model():
-    return joblib.load("App/sentiment_model.joblib")
+    return joblib.load("Models/sentiment_model.joblib")
 
 
 model = load_model()
