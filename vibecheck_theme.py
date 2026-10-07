@@ -7,7 +7,7 @@ import streamlit as st
 
 # ---------------- Brand tokens ----------------
 COLORS = {
-    "ground": "#152A31",      # page background
+    "ground": "#0F181F",      # page background
     "surface": "#12151C",     # cards, sidebar
     "raised": "#1A1E27",      # inputs, hover
     "line": "#262B36",        # borders, grid lines
