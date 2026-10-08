@@ -9,6 +9,10 @@ df = pd.read_csv(DATA_PATH)
 MODEL = "nvidia/nemotron-3.5-lightning-30b-a3b"
 MIN_REVIEWS = 10          # 👉 use the same value as in your notebook
 
+def complaints(category_df, product, n=2):
+    unhappy = category_df[(category_df["short_name"] == product) & (category_df["rating"] <= 3) & (category_df["n_words"] >= 10)]
+    examples = unhappy["clean_text"].sample(min(n, len(unhappy)), random_state=42)
+    return [text[:150] for text in examples]
 
 def product_table(category_df):
     table = category_df.groupby("short_name").agg(
