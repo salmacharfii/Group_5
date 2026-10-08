@@ -130,8 +130,6 @@ def product_verdict(group):
     return "mixed", (f"{pos:.0%} positive, {neu:.0%} neutral, {neg:.0%} negative "
                      f"across {n:,} reviews.{praise_txt}{complaint_txt}")
 
-
-# ---------------- Sidebar ----------------
 # ---------------- Sidebar ----------------
 tfidf = vectorizer[-1] if hasattr(vectorizer, "__getitem__") else vectorizer
 ngrams = getattr(tfidf, "ngram_range", None)
@@ -139,17 +137,7 @@ class_weight = getattr(clf, "class_weight", None)
 C = getattr(clf, "C", None)
 
 with st.sidebar:
-    st.header("About this app")
-    st.caption("Group 5 · Ironhack AI Engineering")
-    st.write("Analyse Amazon product reviews: detect sentiment, summarise many reviews at once, "
-             "and generate review-based buying guides.")
-
-    s1, s2 = st.columns(2)
-    s1.metric("Reviews", "27,700")
-    s2.metric("Categories", f"{aw.df['category'].nunique()}")
-    s3, s4 = st.columns(2)
-    s3.metric("Accuracy", "92.4%")
-    s4.metric("Macro F1", "0.64")
+    st.header("About the model")
 
     with st.expander("🧠 Sentiment model", expanded=True):
         st.markdown(
