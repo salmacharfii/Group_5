@@ -2,6 +2,7 @@ import joblib
 import numpy as np
 import pandas as pd
 import streamlit as st
+import article_writer as aw
 import plotly.graph_objects as go
 
 import vibecheck_theme as vc
@@ -252,5 +253,43 @@ with tab3:
             "Support": [162, 300, 6463],
         })
         st.dataframe(scores, hide_index=True, width="stretch")
+
+# ---------------- Tab 4: article writer ----------------
+@st.cache_data(show_spinner=False)
+def generate_article(category, model):          # model in the key -> new cache if you switch model
+    return aw.write_article(aw.prompt_v2(category))
+
+
+with tab4:
+    st.write("Generate a blog article about the best and worst products in a category, "
+             f"written by NVIDIA **{aw.MODEL.split('/')[-1]}** from our review statistics.")
+
+    category = st.selectbox("Category", aw.categories())
+
+    with st.expander("Data the article is based on"):
+        st.dataframe(aw.product_table(aw.df[aw.df["category"] == category]), use_container_width=True)
+
+    if st.button("✍️ Write article", type="primary"):
+        try:
+            with st.spinner("Writing... (about 20-30 seconds)"):
+                article = generate_article(category, aw.MODEL)
+        except Exception as e:
+            st.error(f"The writing model is not available right now: {e}")
+            st.stop()
+
+        check = aw.check_article(article, category)
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Words", check["words"])
+        c2.metric("Sections", check["sections"])
+        c3.metric("Products named", check["product names"])
+        c4.metric("Invented numbers", len(check["invented numbers"]))
+        if check["invented numbers"]:
+            st.warning(f"Numbers not found in the data: {', '.join(check['invented numbers'])}")
+
+        with st.container(border=True):
+            st.markdown(article)
+
+        st.download_button("⬇ Download article (.md)", article.encode("utf-8"),
+                           f"article_{category.lower().replace(' ', '_')}.md", "text/markdown")
 
 vc.footer()
