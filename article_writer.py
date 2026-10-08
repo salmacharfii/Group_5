@@ -28,6 +28,12 @@ def pick_products(table):
     top = table.drop(worst).sort_values("reviews", ascending=False).index[:3]
     return list(top), worst
 
+def product_line(table, product):
+    row = table.loc[product]
+    line = f"{product}: {row['avg_rating']}/5 from {row['reviews']:.0f} reviews, {row['pct_negative']}% negative"
+    if pd.notna(row["pct_recommend"]):
+        line += f", {row['pct_recommend']}% recommend it"
+    return line
 
 def facts_text(category):
     category_df = df[df["category"] == category]
