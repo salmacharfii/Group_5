@@ -4,6 +4,7 @@ import pandas as pd
 import streamlit as st
 import article_writer as aw
 import plotly.graph_objects as go
+from sklearn.feature_extraction.text import ENGLISH_STOP_WORDS
 
 import vibecheck_theme as vc
 
@@ -96,9 +97,9 @@ RECOMMEND_MIN_POS = 0.70      # at least 70% positive ...
 RECOMMEND_MAX_NEG = 0.15      # ... and at most 15% negative
 REJECT_MIN_NEG = 0.30         # 30%+ negative -> not recommended
 VERDICT_STYLE = {
-    "recommend": ("Recommended", COLORS["positive"]),
-    "mixed": ("Mixed reviews", COLORS["neutral"]),
-    "reject": ("Not recommended", COLORS["negative"]),
+    "recommend": ("Customers happy", COLORS["positive"]),
+    "mixed": ("Mixed feedback", COLORS["neutral"]),
+    "reject": ("Needs attention", COLORS["negative"]),
 }
 
 
@@ -109,8 +110,13 @@ def key_terms(texts, class_name, top_n=4):
     X = vectorizer.transform(texts)
     class_idx = list(clf.classes_).index(class_name)
     scores = np.asarray(X.sum(axis=0)).ravel() * clf.coef_[class_idx]
-    top = np.argsort(-scores)[:top_n]
-    return [feature_names[i] for i in top if scores[i] > 0]
+    picked = []
+    for i in np.argsort(-scores):
+        if scores[i] <= 0 or len(picked) == top_n:
+            break
+        if not set(feature_names[i].split()) & ENGLISH_STOP_WORDS:     # skip filler words like "and", "my"
+            picked.append(feature_names[i])
+    return picked
 
 
 def product_verdict(group):
@@ -120,8 +126,8 @@ def product_verdict(group):
     praise = key_terms(group.loc[group["sentiment"] == "positive", "_text"], "positive")
     complaints = key_terms(group.loc[group["sentiment"] == "negative", "_text"], "negative")
 
-    praise_txt = f" Customers especially mention **{', '.join(praise)}**." if praise else ""
-    complaint_txt = f" Common complaints: **{', '.join(complaints)}**." if complaints else ""
+    praise_txt = f" Most praised: **{', '.join(praise)}**." if praise else ""
+    complaint_txt = f" Main complaints: **{', '.join(complaints)}**." if complaints else ""
 
     if pos >= RECOMMEND_MIN_POS and neg <= RECOMMEND_MAX_NEG:
         return "recommend", (f"{pos:.0%} of {n:,} reviews are positive and only {neg:.0%} negative.{praise_txt}")
@@ -162,11 +168,11 @@ with st.sidebar:
 """
         )
 
-    with st.expander("✍️ Article writer"):
+    with st.expander("✍️ Category report"):
         st.markdown(
             f"""
 - **Model:** NVIDIA {aw.MODEL.split('/')[-1]} via NVIDIA API
-- **Grounding:** the article is written only from our review statistics
+- **Grounding:** the report is written only from our review statistics
   (ratings, % negative, % recommend, common complaints)
 - **Checks:** sections present, products named, no invented numbers
 """
@@ -179,14 +185,15 @@ with st.sidebar:
 - Data is ~93% positive, so accuracy looks higher than real-world performance
 - Bag-of-words model: misses sarcasm and context ("not bad at all")
 - English reviews only
-- Generated articles can still contain mistakes: always review before publishing
+- Generated reports can still contain mistakes: always review before sharing
 """
         )
 
     with st.expander("🛠 Tech stack"):
         st.markdown("Python · scikit-learn · pandas · Plotly · Streamlit · NVIDIA NIM API")
-vc.header()
-tab1, tab2, tab3, tab4 = st.tabs(["Single review", "Batch analysis", "Article writer", "Model performance"])
+
+vc.header("Read the vibe of every review. Turn customer feedback into product decisions.")
+tab1, tab2, tab3, tab4 = st.tabs(["Check a review", "Analyze your reviews", "Category report", "Model performance"])
 
 # ---------------- Tab 1: single review ----------------
 with tab1:
@@ -199,7 +206,7 @@ with tab1:
         if col.button(name, width="stretch"):
             st.session_state.review = text
 
-    review = st.text_area("Or paste your own product review", key="review", height=120)
+    review = st.text_area("Or paste a customer review", key="review", height=120)
 
     if st.button("Check the vibe", type="primary") and review.strip():
         probs = model.predict_proba([review])[0]
@@ -210,20 +217,21 @@ with tab1:
         with left:
             vc.result_card(pred, {str(c): float(p) for c, p in zip(model.classes_, probs)})
             if conf < 0.5:
-                st.warning("Low confidence: the model is unsure about this review.")
+                st.warning("Mixed signals: the model is unsure about this one. Worth a human read.")
         with right:
-            vc.eyebrow("Why this prediction?")
+            vc.eyebrow("What drove this result")
             contrib = word_contributions(review, pred)
             if contrib.empty:
-                st.info("None of these words were seen during training.")
+                st.info("None of these words appear in our training data, so there is nothing to explain.")
             else:
                 st.plotly_chart(contributions_chart(contrib, pred), width="stretch")
-                st.caption("Words with the biggest influence on the prediction.")
+                st.caption("The words that pushed the result the most.")
 
 # ---------------- Tab 2: batch ----------------
 with tab2:
-    vc.eyebrow("Many reviews at once")
-    st.write("Upload a CSV file with one review per row.")
+    vc.eyebrow("Your customer reviews")
+    st.write("Upload a CSV export of your reviews, one review per row. VibeCheck labels every review "
+             "and shows which products customers love and which need attention.")
     file = st.file_uploader("CSV file", type="csv")
     if file:
         data = pd.read_csv(file)
@@ -252,7 +260,7 @@ with tab2:
             right.dataframe(data[[text_col, "sentiment", "confidence"]], height=360, width="stretch")
 
             # --- Recommendation per product ---
-            st.subheader("Recommendation")
+            st.subheader("Product health")
             if product_col.startswith("(none"):
                 groups = [("All uploaded reviews", data)]
             else:
@@ -269,7 +277,7 @@ with tab2:
                     st.markdown(f"#### {name}")
                     st.markdown(text)
 
-            st.download_button("Download results (CSV)",
+            st.download_button("Download labelled reviews (CSV)",
                                data.drop(columns="_text").to_csv(index=False).encode("utf-8"),
                                "sentiment_results.csv", "text/csv")
 
@@ -324,36 +332,38 @@ def generate_article(category, model):          # model in the key -> new cache 
 
 
 with tab3:
-    st.write("Generate a blog article about the best and worst products in a category, "
-             f"written by NVIDIA **{aw.MODEL.split('/')[-1]}** from our review statistics.")
+    st.write("Get a short report on the strongest and weakest products in a category: what customers praise, "
+             "what they complain about and which product needs attention first. "
+             f"Written by NVIDIA **{aw.MODEL.split('/')[-1]}** from our review statistics.")
 
     category = st.selectbox("Category", aw.categories())
 
-    with st.expander("Data the article is based on"):
+    with st.expander("The data behind this report"):
         st.dataframe(aw.product_table(aw.df[aw.df["category"] == category]), use_container_width=True)
 
-    if st.button("✍️ Write article", type="primary"):
+    if st.button("Write report", type="primary"):
         try:
-            with st.spinner("Writing... (about 20-30 seconds)"):
+            with st.spinner("Writing the report… about 20–30 seconds"):
                 article = generate_article(category, aw.MODEL)
         except Exception as e:
-            st.error(f"Error: {type(e).__name__}: {e}")
-            st.exception(e)          # shows the full traceback with file names and line numbers
+            st.error("The report writer did not answer. Try again in a minute.")
+            with st.expander("Technical details"):
+                st.exception(e)          # full traceback with file names and line numbers
             st.stop()
 
         check = aw.check_article(article, category)
         c1, c2, c3, c4 = st.columns(4)
         c1.metric("Words", check["words"])
         c2.metric("Sections", check["sections"])
-        c3.metric("Products named", check["product names"])
-        c4.metric("Invented numbers", len(check["invented numbers"]))
+        c3.metric("Products covered", check["product names"])
+        c4.metric("Numbers not in data", len(check["invented numbers"]))
         if check["invented numbers"]:
             st.warning(f"Numbers not found in the data: {', '.join(check['invented numbers'])}")
 
         with st.container(border=True):
             st.markdown(article)
 
-        st.download_button("⬇ Download article (.md)", article.encode("utf-8"),
+        st.download_button("Download report (.md)", article.encode("utf-8"),
                            f"article_{category.lower().replace(' ', '_')}.md", "text/markdown")
 
 vc.footer()
