@@ -11,9 +11,16 @@ st.set_page_config(page_title="VibeCheck", page_icon="✓", layout="wide")
 st.markdown(
     """
     <style>
+    /* Make the tab bar use the full width */
+    .stTabs [data-baseweb="tab-list"],
+    .stTabs [role="tablist"] {
+        width: 100%;
+        display: flex;
+    }
     /* Push the last tab (Model performance) to the far right */
-    .stTabs [data-baseweb="tab-list"] button:last-of-type {
-        margin-left: auto;
+    .stTabs [data-baseweb="tab-list"] > button:last-of-type,
+    .stTabs [role="tablist"] > [role="tab"]:last-of-type {
+        margin-left: auto !important;
     }
     </style>
     """,
