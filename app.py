@@ -132,14 +132,71 @@ def product_verdict(group):
 
 
 # ---------------- Sidebar ----------------
-with st.sidebar:
-    st.markdown(f'<div class="vc-side-logo">{vc.LOGO_MARK.format(size=40)}</div>', unsafe_allow_html=True)
-    vc.eyebrow("About the model")
-    st.write("**Type:** TF-IDF + Logistic Regression")
-    st.write("**Training data:** 27,700 Amazon reviews")
-    st.write("**Classes:** negative · neutral · positive")
-    st.caption("Group 5 · Ironhack AI Engineering")
+# ---------------- Sidebar ----------------
+tfidf = vectorizer[-1] if hasattr(vectorizer, "__getitem__") else vectorizer
+ngrams = getattr(tfidf, "ngram_range", None)
+class_weight = getattr(clf, "class_weight", None)
+C = getattr(clf, "C", None)
 
+with st.sidebar:
+    st.header("About this app")
+    st.caption("Group 5 · Ironhack AI Engineering")
+    st.write("Analyse Amazon product reviews: detect sentiment, summarise many reviews at once, "
+             "and generate review-based buying guides.")
+
+    s1, s2 = st.columns(2)
+    s1.metric("Reviews", "27,700")
+    s2.metric("Categories", f"{aw.df['category'].nunique()}")
+    s3, s4 = st.columns(2)
+    s3.metric("Accuracy", "92.4%")
+    s4.metric("Macro F1", "0.64")
+
+    with st.expander("🧠 Sentiment model", expanded=True):
+        st.markdown(
+            f"""
+- **Method:** TF-IDF features + Logistic Regression
+- **Vocabulary:** {len(feature_names):,} terms
+- **N-grams:** {f"{ngrams[0]}–{ngrams[1]} words" if ngrams else "n/a"}
+- **Class weight:** {class_weight or "none"}  ·  **C:** {C}
+- **Classes:** negative · neutral · positive
+"""
+        )
+        st.caption("Each review is turned into word-importance scores (TF-IDF); "
+                   "the classifier learns which words point to each sentiment.")
+
+    with st.expander("📊 Data"):
+        st.markdown(
+            """
+- **Source:** Amazon consumer reviews
+- **Labels from star rating:** 1–2 ★ negative · 3 ★ neutral · 4–5 ★ positive
+- **Test set:** 6,925 reviews (held out, never seen in training)
+- **Class balance (test):** 93% positive · 4% neutral · 2% negative
+"""
+        )
+
+    with st.expander("✍️ Article writer"):
+        st.markdown(
+            f"""
+- **Model:** NVIDIA {aw.MODEL.split('/')[-1]} via NVIDIA API
+- **Grounding:** the article is written only from our review statistics
+  (ratings, % negative, % recommend, common complaints)
+- **Checks:** sections present, products named, no invented numbers
+"""
+        )
+
+    with st.expander("⚠️ Limitations"):
+        st.markdown(
+            """
+- Strong on positive reviews, weaker on **neutral** (often confused with positive)
+- Data is ~93% positive, so accuracy looks higher than real-world performance
+- Bag-of-words model: misses sarcasm and context ("not bad at all")
+- English reviews only
+- Generated articles can still contain mistakes: always review before publishing
+"""
+        )
+
+    with st.expander("🛠 Tech stack"):
+        st.markdown("Python · scikit-learn · pandas · Plotly · Streamlit · NVIDIA NIM API")
 vc.header()
 tab1, tab2, tab3, tab4 = st.tabs(["Single review", "Batch analysis", "Article writer", "Model performance"])
 
