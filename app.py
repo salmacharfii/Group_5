@@ -8,6 +8,17 @@ import plotly.graph_objects as go
 import vibecheck_theme as vc
 
 st.set_page_config(page_title="VibeCheck", page_icon="✓", layout="wide")
+st.markdown(
+    """
+    <style>
+    /* Push the last tab (Model performance) to the far right */
+    .stTabs [data-baseweb="tab-list"] button:last-of-type {
+        margin-left: auto;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
 vc.apply_theme()
 
 COLORS = vc.SENTIMENT
@@ -123,7 +134,7 @@ with st.sidebar:
     st.caption("Group 5 · Ironhack AI Engineering")
 
 vc.header()
-tab1, tab2, tab3, tab4 = st.tabs(["Single review", "Batch analysis", "Model performance", "Article writer"])
+tab1, tab2, tab3, tab4 = st.tabs(["Single review", "Batch analysis", "Article writer", "Model performance"])
 
 # ---------------- Tab 1: single review ----------------
 with tab1:
@@ -210,8 +221,8 @@ with tab2:
                                data.drop(columns="_text").to_csv(index=False).encode("utf-8"),
                                "sentiment_results.csv", "text/csv")
 
-# ---------------- Tab 3: performance ----------------
-with tab3:
+# ---------------- Tab 4: performance ----------------
+with tab4:
     vc.eyebrow("Held-out test set · 6,925 reviews")
     m1, m2, m3, m4 = st.columns(4)
     m1.metric("Accuracy", "92.4%")
@@ -254,13 +265,13 @@ with tab3:
         })
         st.dataframe(scores, hide_index=True, width="stretch")
 
-# ---------------- Tab 4: article writer ----------------
+# ---------------- Tab 3: article writer ----------------
 @st.cache_data(show_spinner=False)
 def generate_article(category, model):          # model in the key -> new cache if you switch model
     return aw.write_article(aw.prompt_v2(category))
 
 
-with tab4:
+with tab3:
     st.write("Generate a blog article about the best and worst products in a category, "
              f"written by NVIDIA **{aw.MODEL.split('/')[-1]}** from our review statistics.")
 
