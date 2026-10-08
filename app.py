@@ -274,7 +274,8 @@ with tab4:
             with st.spinner("Writing... (about 20-30 seconds)"):
                 article = generate_article(category, aw.MODEL)
         except Exception as e:
-            st.error(f"The writing model is not available right now: {e}")
+            st.error(f"Error: {type(e).__name__}: {e}")
+            st.exception(e)          # shows the full traceback with file names and line numbers
             st.stop()
 
         check = aw.check_article(article, category)
