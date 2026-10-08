@@ -123,7 +123,7 @@ with st.sidebar:
     st.caption("Group 5 · Ironhack AI Engineering")
 
 vc.header()
-tab1, tab2, tab3 = st.tabs(["Single review", "Batch analysis", "Model performance"])
+tab1, tab2, tab3, tab4 = st.tabs(["Single review", "Batch analysis", "Model performance", "Article writer"])
 
 # ---------------- Tab 1: single review ----------------
 with tab1:
